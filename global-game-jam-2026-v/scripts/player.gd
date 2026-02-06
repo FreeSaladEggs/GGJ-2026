@@ -55,7 +55,10 @@ func _ready():
 
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
-
+	#if Input.is_action_just_pressed("attack"):
+		#_body.play_attack_animation()
+		#print_debug("AAAAAAAAAAAAAA")
+		
 	var current_scene = get_tree().get_current_scene()
 	if current_scene and is_on_floor():
 		var should_freeze = false
@@ -70,10 +73,11 @@ func _physics_process(delta):
 
 	if is_on_floor():
 		can_double_jump = true
-		has_double_jumped = false
-
+		has_double_jumped = false 
+		
+		
 		if Input.is_action_just_pressed("jump"):
-			velocity.y = JUMP_VELOCITY
+			velocity.y = JUMP_VELOCITY 
 			can_double_jump = true
 			_body.play_jump_animation("Jump")
 	else:
