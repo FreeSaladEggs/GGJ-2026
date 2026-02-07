@@ -4,6 +4,9 @@ class_name Character
 const NORMAL_SPEED = 6.0
 const SPRINT_SPEED = 10.0
 const JUMP_VELOCITY = 10
+const KNOCKBACK_FORCE = 25.0
+const STUN_DURATION = 0.4
+var _is_stunned = false
 
 enum SkinColor { BLUE, YELLOW, GREEN, RED }
 
@@ -33,6 +36,18 @@ var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_double_jump = true
 var has_double_jumped = false
 
+@rpc("any_peer", "call_local", "reliable")
+func receive_knockback(direction: Vector3):
+	# 1. Apply the force
+	velocity = direction * KNOCKBACK_FORCE
+	velocity.y = 5.0 # Add a little hop up so they don't get stuck on the floor friction
+	
+	# 2. Stun the player so they can't move immediately
+	_is_stunned = true
+	
+	# 3. Create a timer to reset the stun
+	get_tree().create_timer(STUN_DURATION).timeout.connect(func(): _is_stunned = false)
+	
 func _enter_tree():
 	set_multiplayer_authority(str(name).to_int())
 	$SpringArmOffset/SpringArm3D/Camera3D.current = is_multiplayer_authority()
@@ -53,11 +68,28 @@ func _ready():
 		if get_multiplayer_authority() == local_client_id:
 			request_inventory_sync.rpc_id(1)
 
+func _perform_attack_hit_check():
+	# Try to find the Hitbox node we created in Step 1
+	var hitbox = _body.get_node_or_null("HitBox")
+	
+	if hitbox:
+		# Loop through everything inside the hitbox
+		for body in hitbox.get_overlapping_bodies():
+			# Check if the body is a Character (Player) and NOT me
+			if body is Character and body != self:
+				# Calculate direction: From ME -> to THEM
+				var knockback_dir = (body.global_position - global_position).normalized()
+				# Flatten Y so they don't fly upwards too much
+				knockback_dir.y = 0 
+				
+				# Send the command to the other player
+				# We use the multiplayer authority ID to target the specific player
+				body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
+
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
-	#if Input.is_action_just_pressed("attack"):
-		#_body.play_attack_animation()
-		#print_debug("AAAAAAAAAAAAAA")
+	if Input.is_action_just_pressed("attack"):
+		_body.play_attack_animation()
 		
 	var current_scene = get_tree().get_current_scene()
 	if current_scene and is_on_floor():
@@ -70,7 +102,11 @@ func _physics_process(delta):
 		if should_freeze:
 			freeze()
 			return
-
+	if Input.is_action_just_pressed("attack"):
+		_body.play_attack_animation()
+		_perform_attack_hit_check()
+	# -----------------------------
+	
 	if is_on_floor():
 		can_double_jump = true
 		has_double_jumped = false 
@@ -106,6 +142,14 @@ func freeze():
 	_body.animate(Vector3.ZERO)
 
 func _move() -> void:
+
+	if _is_stunned:
+		# If stunned, apply drag/friction so they slide to a stop
+		velocity.x = move_toward(velocity.x, 0, 0.5)
+		velocity.z = move_toward(velocity.z, 0, 0.5)
+		return
+	# ----------------------
+
 	var _input_direction: Vector2 = Vector2.ZERO
 	if is_multiplayer_authority():
 		_input_direction = Input.get_vector(
@@ -116,7 +160,9 @@ func _move() -> void:
 	var _direction: Vector3 = transform.basis * Vector3(_input_direction.x, 0, _input_direction.y).normalized()
 
 	is_running()
-	_direction = _direction.rotated(Vector3.UP, _spring_arm_offset.rotation.y)
+	# Ensure _spring_arm_offset exists before using it
+	if _spring_arm_offset:
+		_direction = _direction.rotated(Vector3.UP, _spring_arm_offset.rotation.y)
 
 	if _direction:
 		velocity.x = _direction.x * _current_speed
