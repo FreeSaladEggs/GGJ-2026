@@ -4,9 +4,11 @@ class_name Character
 const NORMAL_SPEED = 6.0
 const SPRINT_SPEED = 10.0
 const JUMP_VELOCITY = 10
-const KNOCKBACK_FORCE = 25.0
+const KNOCKBACK_FORCE = 30.0
 const STUN_DURATION = 0.4
 var _is_stunned = false
+var _is_attacking = false
+var _enemies_hit_this_attack = [] # Keeps track of who we already punched
 
 enum SkinColor { BLUE, YELLOW, GREEN, RED }
 
@@ -91,45 +93,84 @@ func _physics_process(delta):
 	if Input.is_action_just_pressed("attack"):
 		_body.play_attack_animation()
 		
-	var current_scene = get_tree().get_current_scene()
-	if current_scene and is_on_floor():
-		var should_freeze = false
-		if current_scene.has_method("is_chat_visible") and current_scene.is_chat_visible():
-			should_freeze = true
-		elif current_scene.has_method("is_inventory_visible") and current_scene.is_inventory_visible():
-			should_freeze = true
+	if not _is_stunned :
+		var current_scene = get_tree().get_current_scene()
+		if current_scene and is_on_floor():
+			var should_freeze = false
+			if current_scene.has_method("is_chat_visible") and current_scene.is_chat_visible():
+				should_freeze = true
+			elif current_scene.has_method("is_inventory_visible") and current_scene.is_inventory_visible():
+				should_freeze = true
 
-		if should_freeze:
-			freeze()
-			return
-	if Input.is_action_just_pressed("attack"):
-		_body.play_attack_animation()
-		_perform_attack_hit_check()
-	# -----------------------------
+			if should_freeze:
+				freeze()
+				return
+		# 1. START THE ATTACK
+		if Input.is_action_just_pressed("attack") and not _is_attacking:
+			start_lingering_attack()
 	
-	if is_on_floor():
-		can_double_jump = true
-		has_double_jumped = false 
+		# 2. CONTINUOUSLY CHECK FOR ENEMIES
+		if _is_attacking:
+			_perform_continuous_hit_check()
+		# -----------------------------
 		
-		
-		if Input.is_action_just_pressed("jump"):
-			velocity.y = JUMP_VELOCITY 
+		if is_on_floor():
 			can_double_jump = true
-			_body.play_jump_animation("Jump")
-	else:
+			has_double_jumped = false 
+			
+			
+			if Input.is_action_just_pressed("jump"):
+				velocity.y = JUMP_VELOCITY 
+				can_double_jump = true
+				_body.play_jump_animation("Jump")
+		else:
+			velocity.y -= gravity * delta
+
+			if can_double_jump and not has_double_jumped and Input.is_action_just_pressed("jump"):
+				velocity.y = JUMP_VELOCITY
+				has_double_jumped = true
+				can_double_jump = false
+				_body.play_jump_animation("Jump2")
+
 		velocity.y -= gravity * delta
 
-		if can_double_jump and not has_double_jumped and Input.is_action_just_pressed("jump"):
-			velocity.y = JUMP_VELOCITY
-			has_double_jumped = true
-			can_double_jump = false
-			_body.play_jump_animation("Jump2")
+		_move()
+		move_and_slide()
+		_body.animate(velocity)
 
-	velocity.y -= gravity * delta
+func start_lingering_attack():
+	_is_attacking = true
+	_enemies_hit_this_attack.clear() # Reset the list of victims
+	_body.play_attack_animation() # Play animation
+	
+	# Create a timer that stops the attack after 2 seconds
+	get_tree().create_timer(1.2).timeout.connect(stop_lingering_attack)
 
-	_move()
-	move_and_slide()
-	_body.animate(velocity)
+func stop_lingering_attack():
+	_is_attacking = false
+	_enemies_hit_this_attack.clear()
+
+func _perform_continuous_hit_check():
+	# Find the Hitbox
+	var hitbox = _body.get_node_or_null("HitBox")
+	if not hitbox: return
+		
+	# Loop through all bodies currently inside the hitbox area
+	for body in hitbox.get_overlapping_bodies():
+		
+		# Check if it's a valid enemy we haven't hit yet
+		if body is Character and body != self and not body in _enemies_hit_this_attack:
+			
+			# 1. Calculate direction away from you
+			var knockback_dir = (body.global_position - global_position).normalized()
+			knockback_dir.y = 0.5 # Slight upward lift
+			
+			# 2. Send the knockback command
+			body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
+			
+			# 3. Mark this enemy as "hit" so we don't hit them again this swing
+			_enemies_hit_this_attack.append(body)
+
 
 func _process(_delta):
 	if not is_multiplayer_authority(): return

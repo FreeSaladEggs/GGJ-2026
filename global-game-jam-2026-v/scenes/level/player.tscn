@@ -4767,7 +4767,7 @@ _data = {
 }
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_2l1sl"]
-size = Vector3(1.5849609, 1.3967285, 0.94958496)
+size = Vector3(1.8195801, 1.6019897, 1.5187302)
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_wb3a5"]
 properties/0/path = NodePath(".:position")
@@ -5013,7 +5013,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.2154064e-08, 0.97509503, 0
 collision_mask = 3
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="3DGodotRobot/HitBox" unique_id=1348798464]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.20499474, -0.19836426, -0.06793219)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.21415004, -0.09072876, -0.058601916)
 shape = SubResource("BoxShape3D_2l1sl")
 
 [node name="SpringArmOffset" type="Node3D" parent="." unique_id=1206125888 node_paths=PackedStringArray("_spring_arm")]
