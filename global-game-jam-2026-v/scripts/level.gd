@@ -7,10 +7,16 @@ extends Node3D
 @onready var multiplayer_chat: MultiplayerChatUI = $MultiplayerChatUI
 @onready var inventory_ui: InventoryUI = $InventoryUI
 
+var is_spawned = true
+
 var chat_visible = false
 var inventory_visible = false
 
 
+#func spawn() -> void:
+	#var spawnMask = golden_mask.new()
+	#spawnMask.instantiate()
+	#spawnMask.transform = Vector3(0,5.5,0)
 
 func _ready():
 	if DisplayServer.get_name() == "headless":
@@ -37,6 +43,12 @@ func _ready():
 	Network.connect("player_connected", Callable(self, "_on_player_connected"))
 	multiplayer.peer_disconnected.connect(_remove_player)
 
+#func _process(delta):
+	#if is_spawned:
+		#spawn()
+		#is_spawned = false
+	
+	
 func _on_player_connected(peer_id, player_info):
 	_add_player(peer_id, player_info)
 
@@ -142,6 +154,7 @@ func _notification(what):
 		print("  B - Toggle inventory")
 		print("  F1 - Add random test item (debug)")
 		print("  F2 - Print inventory contents (debug)")
+
 
 func _on_inventory_closed():
 	inventory_visible = false

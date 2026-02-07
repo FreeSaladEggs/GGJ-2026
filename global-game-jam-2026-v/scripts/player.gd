@@ -100,8 +100,9 @@ func equip_mask_visual():
 	if mask:
 		mask.set("is_equipped", true) 
 		if mask is Area3D:
-			mask.monitoring = false
-			mask.monitorable = false
+			mask.monitorable
+			mask.set_deferred("monitoring",false)
+			mask.set_deferred("monitorable",false)
 		mask.visible = true
 
 # --- POWERUP SYSTEM ---
