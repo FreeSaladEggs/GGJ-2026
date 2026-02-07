@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bcyayacmmfx12"]
 
 [ext_resource type="Material" uid="uid://ciimuayw7qb4n" path="res://Materials/GoldenMask.tres" id="1_b346u"]
-[ext_resource type="Script" uid="uid://bjxoct0rqsd7n" path="res://scripts/golden_mask.gd" id="1_ivm3u"]
+[ext_resource type="Script" uid="uid://bnhhopa1yaef5" path="res://Materials/golden_mask.gd" id="1_ivm3u"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_b346u"]
 
