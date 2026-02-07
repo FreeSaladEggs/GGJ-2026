@@ -1,27 +1,30 @@
 extends CharacterBody3D
 class_name Character
 
-# --- CHANGE THESE FROM CONST TO VAR ---
+# --- STATS ---
 var NORMAL_SPEED = 6.0
 var SPRINT_SPEED = 10.0
 var JUMP_VELOCITY = 10.0
-var KNOCKBACK_FORCE = 25.0 # This was const before, make it var!
+var KNOCKBACK_FORCE = 25.0 
 
-# --- ADD THESE NEW VARS ---
 var _base_normal_speed = 6.0
 var _base_sprint_speed = 10.0
 var _base_jump = 10.0
 var _base_knockback = 25.0
+
 var powerup_timer: Timer
-var  STUN_DURATION = 0.4
+var STUN_DURATION = 0.4
+
+# --- STATE VARS ---
 var _is_stunned = false
 var _is_attacking = false
-var _enemies_hit_this_attack = [] # Keeps track of who we already punched
+var _enemies_hit_this_attack = [] 
+var _saved_nickname: String = "" 
 
 enum SkinColor { BLUE, YELLOW, GREEN, RED }
 
+# --- NODES ---
 @onready var nickname: Label3D = $PlayerNick/Nickname
-
 var player_inventory: PlayerInventory
 
 @export_category("Objects")
@@ -48,6 +51,42 @@ var can_double_jump = true
 var has_double_jumped = false
 
 
+func _enter_tree():
+	set_multiplayer_authority(str(name).to_int())
+	$SpringArmOffset/SpringArm3D/Camera3D.current = is_multiplayer_authority()
+
+func _ready():
+	add_to_group("player")
+	
+	if nickname:
+		_saved_nickname = nickname.text
+
+	# --- FIX START: HIDE MASK ON SPAWN ---
+	# We look for the mask bone attachment. If it exists in the scene, hide it.
+	var bone_attach = find_child("BoneAttachment3D", true, false)
+	if bone_attach:
+		var existing_mask = bone_attach.find_child("Golden Mask", true, false)
+		if existing_mask:
+			existing_mask.visible = false # Hide it so they don't spawn with it!
+			
+			# Also ensure physics are off for the head mask
+			if existing_mask is Area3D:
+				existing_mask.monitoring = false
+				existing_mask.monitorable = false
+	# --- FIX END ---
+
+	if is_multiplayer_authority():
+		player_inventory = PlayerInventory.new()
+		_add_starting_items()
+	elif multiplayer.is_server():
+		player_inventory = PlayerInventory.new()
+		_add_starting_items()
+	else:
+		if get_multiplayer_authority() == multiplayer.get_unique_id():
+			request_inventory_sync.rpc_id(1)
+
+# --- MASK VISUAL LOGIC ---
+
 @rpc("any_peer", "call_local", "reliable")
 func equip_mask_visual():
 	var bone_attach = find_child("BoneAttachment3D", true, false)
@@ -55,6 +94,7 @@ func equip_mask_visual():
 
 	var mask = bone_attach.find_child("Golden Mask", true, false)
 	
+	# If mask doesn't exist in the scene tree, load it
 	if not mask:
 		var mask_path = "res://scenes/level/golden_mask.tscn" 
 		if ResourceLoader.exists(mask_path):
@@ -65,178 +105,123 @@ func equip_mask_visual():
 			mask.transform = Transform3D.IDENTITY
 	
 	if mask:
-		# Use 'set' to avoid the "Invalid Assignment" crash
 		mask.set("is_equipped", true) 
-		mask.visible = true
-		print("SUCCESS: Mask is now an equipped accessory on: ", name)
 		
-@rpc("any_peer", "call_local", "reliable")
-func receive_knockback(direction: Vector3):
-	# 1. Apply the force
-	velocity = direction * KNOCKBACK_FORCE
-	velocity.y = 5.0 # Add a little hop up so they don't get stuck on the floor friction
-	
-	# 2. Stun the player so they can't move immediately
-	_is_stunned = true
-	
-	# 3. Create a timer to reset the stun
-	get_tree().create_timer(STUN_DURATION).timeout.connect(func(): _is_stunned = false)
-	
-func _enter_tree():
-	set_multiplayer_authority(str(name).to_int())
-	$SpringArmOffset/SpringArm3D/Camera3D.current = is_multiplayer_authority()
-
-func _ready():
-	var is_local_player = is_multiplayer_authority()
-	var local_client_id = multiplayer.get_unique_id()
-	add_to_group("player")
-
-	print("Debug: Player ", name, " ready - authority: ", get_multiplayer_authority(), ", local client: ", local_client_id, ", is_local: ", is_local_player)
-
-	if is_local_player:
-		player_inventory = PlayerInventory.new()
-		_add_starting_items()
-	elif multiplayer.is_server():
-		player_inventory = PlayerInventory.new()
-		_add_starting_items()
-	else:
-		if get_multiplayer_authority() == local_client_id:
-			request_inventory_sync.rpc_id(1)
-
-func _perform_attack_hit_check():
-	# Try to find the Hitbox node we created in Step 1
-	var hitbox = _body.get_node_or_null("HitBox")
-	
-	if hitbox:
-		# Loop through everything inside the hitbox
-		for body in hitbox.get_overlapping_bodies():
-			# Check if the body is a Character (Player) and NOT me
-			if body is Character and body != self:
-				# Calculate direction: From ME -> to THEM
-				var knockback_dir = (body.global_position - global_position).normalized()
-				# Flatten Y so they don't fly upwards too much
-				knockback_dir.y = 0 
-				
-				# Send the command to the other player
-				# We use the multiplayer authority ID to target the specific player
-				body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
+		# Turn off physics so the head-mask doesn't trigger collisions
+		if mask is Area3D:
+			mask.monitoring = false
+			mask.monitorable = false
+			
+		mask.visible = true
+		print("Mask equipped visually on: ", name)
 
 # --- POWERUP SYSTEM ---
 
 func apply_powerup(item_id: String):
-	print("PowerUp Collected: ", item_id)
-	_reset_stats() # Remove old powerups first
+	print("PowerUp Collected Locally: ", item_id)
+	_reset_stats_values()
+	
+	var new_text = ""
+	var new_color = Color.WHITE
 	
 	match item_id:
 		"speed":
 			NORMAL_SPEED = 14.0
 			SPRINT_SPEED = 22.0
-			_show_powerup_text("SPEED BOOST!", Color.CYAN)
-			
+			new_text = "FLASH SPEED!"
+			new_color = Color.CYAN
 		"jump":
 			JUMP_VELOCITY = 22.0
-			_show_powerup_text("MOON JUMP!", Color.GREEN)
-			
+			new_text = "MOON JUMP!"
+			new_color = Color.GREEN
 		"knockback":
-			KNOCKBACK_FORCE = 80.0 # Huge knockback!
-			_show_powerup_text("TITAN PUNCH!", Color.RED)
-			
+			KNOCKBACK_FORCE = 80.0
+			new_text = "TITAN PUNCH!"
+			new_color = Color(1, 0.2, 0.2) 
 		"slow_others":
-			_show_powerup_text("TIME FREEZE!", Color.VIOLET)
-			# Call RPC to slow everyone else
+			new_text = "TIME FREEZE!"
+			new_color = Color.VIOLET
 			apply_global_slow.rpc(multiplayer.get_unique_id())
 
-	# Start Timer to reset stats after 10 seconds
-	if not powerup_timer:
-		powerup_timer = Timer.new()
-		add_child(powerup_timer)
-		powerup_timer.one_shot = true
-		powerup_timer.timeout.connect(_reset_stats)
-	
+	update_powerup_label.rpc(new_text, new_color)
+
+	if powerup_timer: powerup_timer.queue_free()
+	powerup_timer = Timer.new()
+	add_child(powerup_timer)
+	powerup_timer.one_shot = true
+	powerup_timer.timeout.connect(_on_powerup_timer_finished)
 	powerup_timer.start(10.0)
 
-func _reset_stats():
+func _on_powerup_timer_finished():
+	_reset_stats_values()
+	reset_powerup_label.rpc()
+
+func _reset_stats_values():
 	NORMAL_SPEED = _base_normal_speed
 	SPRINT_SPEED = _base_sprint_speed
 	JUMP_VELOCITY = _base_jump
 	KNOCKBACK_FORCE = _base_knockback
-	
-	# If we are currently slowed by someone else, don't reset speed yet!
-	# (For simplicity, this reset overrides everything)
 
-func _show_powerup_text(text: String, color: Color):
-	# Assumes you have a Label3D named "Nickname" or similar
+@rpc("any_peer", "call_local", "reliable")
+func update_powerup_label(text_override: String, color: Color):
 	if nickname:
-		var original_text = nickname.text
-		nickname.text = text
+		if _saved_nickname == "" and nickname.text != text_override:
+			_saved_nickname = nickname.text
+		nickname.text = text_override
 		nickname.modulate = color
-		await get_tree().create_timer(2.0).timeout
-		nickname.text = original_text
+		nickname.outline_modulate = Color.BLACK 
+
+@rpc("any_peer", "call_local", "reliable")
+func reset_powerup_label():
+	if nickname:
+		nickname.text = _saved_nickname
 		nickname.modulate = Color.WHITE
 
-# --- SPECIAL ABILITY: SLOW OTHERS ---
+# --- COMBAT & ABILITIES ---
+
+@rpc("any_peer", "call_local", "reliable")
+func receive_knockback(direction: Vector3, force_override: float = -1):
+	var final_force = force_override if force_override > 0 else 25.0
+	velocity = direction * final_force
+	velocity.y = 5.0
+	_is_stunned = true
+	get_tree().create_timer(STUN_DURATION).timeout.connect(func(): _is_stunned = false)
 
 @rpc("any_peer", "call_local")
 func apply_global_slow(caster_id: int):
-	# If I am the one who cast it, I don't get slowed
-	if multiplayer.get_unique_id() == caster_id:
-		return
-		
-	print("I have been slowed by player ", caster_id)
-	
-	# Apply Slow
+	if multiplayer.get_unique_id() == caster_id: return
+	print("I have been slowed!")
 	NORMAL_SPEED = 2.0
 	SPRINT_SPEED = 3.0
 	JUMP_VELOCITY = 5.0
 	
-	# Create a temporary timer to remove the slow after 5 seconds
 	await get_tree().create_timer(5.0).timeout
 	
-	# Restore my stats (unless I have a powerup active)
-	# For safety, we just reset to base
-	NORMAL_SPEED = _base_normal_speed
-	SPRINT_SPEED = _base_sprint_speed
-	JUMP_VELOCITY = _base_jump
+	if not powerup_timer or powerup_timer.is_stopped():
+		NORMAL_SPEED = _base_normal_speed
+		SPRINT_SPEED = _base_sprint_speed
+		JUMP_VELOCITY = _base_jump
 
+# --- PHYSICS & MOVEMENT ---
 
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
-	if Input.is_action_just_pressed("attack"):
-		_body.play_attack_animation()
-		
 	
-	var current_scene = get_tree().get_current_scene()
-	if current_scene and is_on_floor():
-		var should_freeze = false
-		if current_scene.has_method("is_chat_visible") and current_scene.is_chat_visible():
-			should_freeze = true
-		elif current_scene.has_method("is_inventory_visible") and current_scene.is_inventory_visible():
-			should_freeze = true
-
-		if should_freeze:
-			freeze()
-			return
-	# 1. START THE ATTACK
 	if Input.is_action_just_pressed("attack") and not _is_attacking:
 		start_lingering_attack()
 	
-	# 2. CONTINUOUSLY CHECK FOR ENEMIES
 	if _is_attacking:
 		_perform_continuous_hit_check()
-	# -----------------------------
 	
 	if is_on_floor():
 		can_double_jump = true
 		has_double_jumped = false 
-		
-		
 		if Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY 
 			can_double_jump = true
 			_body.play_jump_animation("Jump")
 	else:
 		velocity.y -= gravity * delta
-
 		if can_double_jump and not has_double_jumped and Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY
 			has_double_jumped = true
@@ -251,10 +236,8 @@ func _physics_process(delta):
 
 func start_lingering_attack():
 	_is_attacking = true
-	_enemies_hit_this_attack.clear() # Reset the list of victims
-	_body.play_attack_animation() # Play animation
-	
-	# Create a timer that stops the attack after 2 seconds
+	_enemies_hit_this_attack.clear() 
+	_body.play_attack_animation() 
 	get_tree().create_timer(1.2).timeout.connect(stop_lingering_attack)
 
 func stop_lingering_attack():
@@ -262,57 +245,41 @@ func stop_lingering_attack():
 	_enemies_hit_this_attack.clear()
 
 func _perform_continuous_hit_check():
-	# Find the Hitbox
 	var hitbox = _body.get_node_or_null("HitBox")
 	if not hitbox: return
-		
-	# Loop through all bodies currently inside the hitbox area
 	for body in hitbox.get_overlapping_bodies():
-		
-		# Check if it's a valid enemy we haven't hit yet
 		if body is Character and body != self and not body in _enemies_hit_this_attack:
-			
-			# 1. Calculate direction away from you
 			var knockback_dir = (body.global_position - global_position).normalized()
-			knockback_dir.y = 5 # Slight upward lift
-			
-			# 2. Send the knockback command
-			body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
-			
-			# 3. Mark this enemy as "hit" so we don't hit them again this swing
+			knockback_dir.y = 0 
+			body.receive_knockback.rpc_id(
+				body.get_multiplayer_authority(), 
+				knockback_dir, 
+				KNOCKBACK_FORCE
+			)
 			_enemies_hit_this_attack.append(body)
-
 
 func _process(_delta):
 	if not is_multiplayer_authority(): return
 	_check_fall_and_respawn()
 
 func freeze():
-	velocity.x = 0
-	velocity.z = 0
+	velocity = Vector3.ZERO
 	_current_speed = 0
 	_body.animate(Vector3.ZERO)
 
 func _move() -> void:
-
 	if _is_stunned:
-		# If stunned, apply drag/friction so they slide to a stop
 		velocity.x = move_toward(velocity.x, 0, 0.5)
 		velocity.z = move_toward(velocity.z, 0, 0.5)
 		return
-	# ----------------------
 
 	var _input_direction: Vector2 = Vector2.ZERO
 	if is_multiplayer_authority():
-		_input_direction = Input.get_vector(
-			"move_left", "move_right",
-			"move_forward", "move_backward"
-			)
+		_input_direction = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 
 	var _direction: Vector3 = transform.basis * Vector3(_input_direction.x, 0, _input_direction.y).normalized()
 
 	is_running()
-	# Ensure _spring_arm_offset exists before using it
 	if _spring_arm_offset:
 		_direction = _direction.rotated(Vector3.UP, _spring_arm_offset.rotation.y)
 
@@ -341,10 +308,13 @@ func _respawn():
 	global_transform.origin = _respawn_point
 	velocity = Vector3.ZERO
 
+# --- COSMETICS & INV ---
+
 @rpc("any_peer", "reliable")
 func change_nick(new_nick: String):
 	if nickname:
 		nickname.text = new_nick
+		_saved_nickname = new_nick 
 
 func get_texture_from_name(skin_color: SkinColor) -> CompressedTexture2D:
 	match skin_color:
@@ -357,7 +327,6 @@ func get_texture_from_name(skin_color: SkinColor) -> CompressedTexture2D:
 @rpc("any_peer", "reliable")
 func set_player_skin(skin_name: SkinColor) -> void:
 	var texture = get_texture_from_name(skin_name)
-
 	set_mesh_texture(_bottom_mesh, texture)
 	set_mesh_texture(_chest_mesh, texture)
 	set_mesh_texture(_face_mesh, texture)
@@ -371,168 +340,69 @@ func set_mesh_texture(mesh_instance: MeshInstance3D, texture: CompressedTexture2
 			new_material.albedo_texture = texture
 			mesh_instance.set_surface_override_material(0, new_material)
 
-# Inventory Network Functions - Server authoritative, client-specific
+func _add_starting_items():
+	if not player_inventory: return
+	var sword = ItemDatabase.get_item("iron_sword")
+	if sword: player_inventory.add_item(sword, 1)
+	var potion = ItemDatabase.get_item("health_potion")
+	if potion: player_inventory.add_item(potion, 3)
+
+# --- INVENTORY RPCS ---
+
 @rpc("any_peer", "call_local", "reliable")
 func request_inventory_sync():
-	print("Debug: request_inventory_sync called on player ", name, " (authority: ", get_multiplayer_authority(), ") by client ", multiplayer.get_remote_sender_id())
-
-	if not multiplayer.is_server():
-		return
-
+	if not multiplayer.is_server(): return
 	var requesting_client = multiplayer.get_remote_sender_id()
-	if requesting_client != get_multiplayer_authority():
-		push_warning("Client " + str(requesting_client) + " tried to request inventory for player " + str(get_multiplayer_authority()))
-		return
-
 	if player_inventory:
 		sync_inventory_to_owner.rpc_id(requesting_client, player_inventory.to_dict())
 
 @rpc("any_peer", "call_local", "reliable")
 func sync_inventory_to_owner(inventory_data: Dictionary):
-	print("Debug: sync_inventory_to_owner called on player ", name, " (authority: ", get_multiplayer_authority(), ") - local unique id: ", multiplayer.get_unique_id(), " from: ", multiplayer.get_remote_sender_id())
-
-	if multiplayer.get_remote_sender_id() != 1:
-		return
-
-	if not is_multiplayer_authority():
-		return
-
-	if not player_inventory:
-		player_inventory = PlayerInventory.new()
+	if multiplayer.get_remote_sender_id() != 1: return
+	if not is_multiplayer_authority(): return
+	if not player_inventory: player_inventory = PlayerInventory.new()
 	player_inventory.from_dict(inventory_data)
-
 	var level_scene = get_tree().get_current_scene()
 	if level_scene:
-		if is_multiplayer_authority() or get_multiplayer_authority() == multiplayer.get_unique_id():
-			print("Debug: This is the local player, updating UI")
-			if level_scene.has_method("update_local_inventory_display"):
-				level_scene.update_local_inventory_display()
-			if level_scene.has_node("InventoryUI"):
-				var inventory_ui = level_scene.get_node("InventoryUI")
-				if inventory_ui.visible and inventory_ui.has_method("refresh_display"):
-					print("Debug: Calling refresh_display directly on InventoryUI")
-					inventory_ui.refresh_display()
-		else:
-			print("Debug: Not the local player, skipping UI update")
+		if level_scene.has_method("update_local_inventory_display"):
+			level_scene.update_local_inventory_display()
+		if level_scene.has_node("InventoryUI"):
+			level_scene.get_node("InventoryUI").refresh_display()
 
 @rpc("any_peer", "call_local", "reliable")
-func request_move_item(from_slot: int, to_slot: int, quantity: int = -1):
-	print("Debug: request_move_item called - from:", from_slot, " to:", to_slot, " on player ", name, " (authority: ", get_multiplayer_authority(), ") by client ", multiplayer.get_remote_sender_id())
-
-	if not multiplayer.is_server():
-		return
-
-	var requesting_client = multiplayer.get_remote_sender_id()
-	if requesting_client != get_multiplayer_authority():
-		push_warning("Client " + str(requesting_client) + " tried to modify inventory for player " + str(get_multiplayer_authority()))
-		return
-
-	if not player_inventory:
-		return
-
-	if from_slot < 0 or from_slot >= PlayerInventory.INVENTORY_SIZE or to_slot < 0 or to_slot >= PlayerInventory.INVENTORY_SIZE:
-		push_warning("Invalid slot indices: from=" + str(from_slot) + " to=" + str(to_slot))
-		return
-
+func request_move_item(from_slot, to_slot, quantity = -1):
+	if not multiplayer.is_server(): return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority(): return
+	if not player_inventory: return
 	var success = false
-	if quantity == -1:
-		success = player_inventory.move_item(from_slot, to_slot)
-		if not success:
-			success = player_inventory.swap_items(from_slot, to_slot)
-			print("Debug: Swapped items between slots ", from_slot, " and ", to_slot)
-		else:
-			print("Debug: Moved item from slot ", from_slot, " to ", to_slot)
-	else:
-		success = player_inventory.move_item(from_slot, to_slot, quantity)
-		print("Debug: Moved ", quantity, " items from slot ", from_slot, " to ", to_slot)
-
+	if quantity == -1: success = player_inventory.move_item(from_slot, to_slot)
+	if not success and quantity == -1: success = player_inventory.swap_items(from_slot, to_slot)
+	elif quantity != -1: success = player_inventory.move_item(from_slot, to_slot, quantity)
 	if success:
-		print("Debug: Move successful, syncing inventory to owner ", get_multiplayer_authority())
 		var owner_id = get_multiplayer_authority()
-		if owner_id != 1:
-			sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
-		else:
-			var level_scene = get_tree().get_current_scene()
-			if level_scene and level_scene.has_method("update_local_inventory_display"):
-				level_scene.update_local_inventory_display()
-	else:
-		print("Debug: Move/swap failed")
+		if owner_id != 1: sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
 
 @rpc("any_peer", "call_local", "reliable")
 func request_add_item(item_id: String, quantity: int = 1):
-	print("Debug: request_add_item called on player ", name, " (authority: ", get_multiplayer_authority(), ") by client ", multiplayer.get_remote_sender_id())
-
-	if not multiplayer.is_server():
-		return
-
+	if not multiplayer.is_server(): return
 	var requesting_client = multiplayer.get_remote_sender_id()
-	if requesting_client != get_multiplayer_authority() and requesting_client != 1:
-		push_warning("Client " + str(requesting_client) + " tried to add items to player " + str(get_multiplayer_authority()))
-		return
-
-	if not player_inventory:
-		return
-
-	if quantity <= 0:
-		push_warning("Invalid quantity: " + str(quantity))
-		return
-
+	if requesting_client != get_multiplayer_authority() and requesting_client != 1: return
+	if not player_inventory: return
 	var item = ItemDatabase.get_item(item_id)
-	if not item:
-		push_warning("Item not found: " + item_id)
-		return
-
-	var remaining = player_inventory.add_item(item, quantity)
-	var added = quantity - remaining
-	print("Debug: Added ", added, " ", item_id, " to inventory (", remaining, " remaining)")
-
-	if added > 0:
-		var owner_id = get_multiplayer_authority()
-		print("Debug: Syncing inventory to owner ", owner_id)
-		if owner_id != 1:
-			sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
-		else:
-			var level_scene = get_tree().get_current_scene()
-			if level_scene and level_scene.has_method("update_local_inventory_display"):
-				level_scene.update_local_inventory_display()
+	if not item: return
+	player_inventory.add_item(item, quantity)
+	var owner_id = get_multiplayer_authority()
+	if owner_id != 1: sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
+	else:
+		var level_scene = get_tree().get_current_scene()
+		if level_scene and level_scene.has_method("update_local_inventory_display"):
+			level_scene.update_local_inventory_display()
 
 @rpc("any_peer", "call_local", "reliable")
 func request_remove_item(item_id: String, quantity: int = 1):
-	print("Debug: request_remove_item called on player ", name, " (authority: ", get_multiplayer_authority(), ") by client ", multiplayer.get_remote_sender_id())
-
-	if not multiplayer.is_server():
-		return
-
-	var requesting_client = multiplayer.get_remote_sender_id()
-	if requesting_client != get_multiplayer_authority():
-		push_warning("Client " + str(requesting_client) + " tried to remove items from player " + str(get_multiplayer_authority()))
-		return
-
-	if not player_inventory:
-		return
-
-	if quantity <= 0:
-		push_warning("Invalid quantity: " + str(quantity))
-		return
-
-	var removed = player_inventory.remove_item(item_id, quantity)
-
-	if removed > 0:
-		var owner_id = get_multiplayer_authority()
-		if owner_id != 1:
-			sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
-
-func get_inventory() -> PlayerInventory:
-	return player_inventory
-
-func _add_starting_items():
-	if not player_inventory:
-		return
-
-	var sword = ItemDatabase.get_item("iron_sword")
-	var potion = ItemDatabase.get_item("health_potion")
-
-	if sword:
-		player_inventory.add_item(sword, 1)
-	if potion:
-		player_inventory.add_item(potion, 3)
+	if not multiplayer.is_server(): return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority(): return
+	if not player_inventory: return
+	player_inventory.remove_item(item_id, quantity)
+	var owner_id = get_multiplayer_authority()
+	if owner_id != 1: sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())

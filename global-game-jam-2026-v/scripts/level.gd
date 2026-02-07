@@ -10,6 +10,8 @@ extends Node3D
 var chat_visible = false
 var inventory_visible = false
 
+
+
 func _ready():
 	if DisplayServer.get_name() == "headless":
 		print("Dedicated server starting...")
