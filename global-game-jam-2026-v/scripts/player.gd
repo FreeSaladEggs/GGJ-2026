@@ -192,18 +192,21 @@ func apply_rope_bounce(collision: KinematicCollision3D):
 	var collider = collision.get_collider()
 	var collision_normal = collision.get_normal()
 	
-	# 1. Calculate "Arrow" launch (straight away from rope)
+	# 1. "Arrow" Physics: Launch straight away from the surface normal
 	var bounce_dir = collision_normal.normalized()
 	
-	# 2. Trigger the Visual Stretch on the rope
+	# 2. Fix the Visual: Pass the Player's position so the rope knows where to bend
 	if collider.has_method("play_elastic_stretch"):
 		collider.play_elastic_stretch(global_position)
 	
-	# 3. Launch the player
+	# 3. Apply the launch force
+	# We set Y to a small value so they don't just stick to the floor
+	var final_dir = Vector3(bounce_dir.x, 0.2, bounce_dir.z)
+	
 	receive_knockback.rpc_id(
 		get_multiplayer_authority(), 
-		bounce_dir, 
-		KNOCKBACK_FORCE * 1.5
+		final_dir, 
+		KNOCKBACK_FORCE * 1.8 # Increased force for a better snap
 	)
 
 func _physics_process(delta):
