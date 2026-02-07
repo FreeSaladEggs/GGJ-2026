@@ -8,6 +8,7 @@
 [sub_resource type="SphereShape3D" id="SphereShape3D_ivm3u"]
 
 [node name="Golden Mask" type="Area3D" unique_id=39416399]
+collision_layer = 2
 script = ExtResource("1_ivm3u")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=619502400]
