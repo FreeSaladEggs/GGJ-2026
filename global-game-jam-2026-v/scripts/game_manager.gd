@@ -29,16 +29,34 @@ func _ready():
 	switch_to_day()
 	_is_day = true
 
-	var timer = Timer.new()
-	timer.wait_time = 10.0
-	timer.one_shot = false
-	timer.autostart = true
-	timer.timeout.connect(_toggle_day_night)
-	add_child(timer)
+	if multiplayer.is_server():
+		var timer = Timer.new()
+		timer.wait_time = 10.0
+		timer.one_shot = false
+		timer.autostart = true
+		timer.timeout.connect(_toggle_day_night)
+		add_child(timer)
+		_set_day_state.rpc(_is_day)
+	else:
+		request_day_state.rpc_id(1)
 
 func _toggle_day_night():
+	if not multiplayer.is_server():
+		return
 	_is_day = not _is_day
+	_set_day_state.rpc(_is_day)
+
+@rpc("any_peer", "call_local", "reliable")
+func _set_day_state(is_day: bool):
+	_is_day = is_day
 	if _is_day:
 		switch_to_day()
 	else:
 		switch_to_night()
+
+@rpc("any_peer", "call_local", "reliable")
+func request_day_state():
+	if not multiplayer.is_server():
+		return
+	var sender_id = multiplayer.get_remote_sender_id()
+	_set_day_state.rpc_id(sender_id, _is_day)
