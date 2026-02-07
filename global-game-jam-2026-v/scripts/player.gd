@@ -93,50 +93,50 @@ func _physics_process(delta):
 	if Input.is_action_just_pressed("attack"):
 		_body.play_attack_animation()
 		
-	if not _is_stunned :
-		var current_scene = get_tree().get_current_scene()
-		if current_scene and is_on_floor():
-			var should_freeze = false
-			if current_scene.has_method("is_chat_visible") and current_scene.is_chat_visible():
-				should_freeze = true
-			elif current_scene.has_method("is_inventory_visible") and current_scene.is_inventory_visible():
-				should_freeze = true
-
-			if should_freeze:
-				freeze()
-				return
-		# 1. START THE ATTACK
-		if Input.is_action_just_pressed("attack") and not _is_attacking:
-			start_lingering_attack()
 	
-		# 2. CONTINUOUSLY CHECK FOR ENEMIES
-		if _is_attacking:
-			_perform_continuous_hit_check()
-		# -----------------------------
+	var current_scene = get_tree().get_current_scene()
+	if current_scene and is_on_floor():
+		var should_freeze = false
+		if current_scene.has_method("is_chat_visible") and current_scene.is_chat_visible():
+			should_freeze = true
+		elif current_scene.has_method("is_inventory_visible") and current_scene.is_inventory_visible():
+			should_freeze = true
+
+		if should_freeze:
+			freeze()
+			return
+	# 1. START THE ATTACK
+	if Input.is_action_just_pressed("attack") and not _is_attacking:
+		start_lingering_attack()
+	
+	# 2. CONTINUOUSLY CHECK FOR ENEMIES
+	if _is_attacking:
+		_perform_continuous_hit_check()
+	# -----------------------------
+	
+	if is_on_floor():
+		can_double_jump = true
+		has_double_jumped = false 
 		
-		if is_on_floor():
+		
+		if Input.is_action_just_pressed("jump"):
+			velocity.y = JUMP_VELOCITY 
 			can_double_jump = true
-			has_double_jumped = false 
-			
-			
-			if Input.is_action_just_pressed("jump"):
-				velocity.y = JUMP_VELOCITY 
-				can_double_jump = true
-				_body.play_jump_animation("Jump")
-		else:
-			velocity.y -= gravity * delta
-
-			if can_double_jump and not has_double_jumped and Input.is_action_just_pressed("jump"):
-				velocity.y = JUMP_VELOCITY
-				has_double_jumped = true
-				can_double_jump = false
-				_body.play_jump_animation("Jump2")
-
+			_body.play_jump_animation("Jump")
+	else:
 		velocity.y -= gravity * delta
 
-		_move()
-		move_and_slide()
-		_body.animate(velocity)
+		if can_double_jump and not has_double_jumped and Input.is_action_just_pressed("jump"):
+			velocity.y = JUMP_VELOCITY
+			has_double_jumped = true
+			can_double_jump = false
+			_body.play_jump_animation("Jump2")
+
+	velocity.y -= gravity * delta
+
+	_move()
+	move_and_slide()
+	_body.animate(velocity)
 
 func start_lingering_attack():
 	_is_attacking = true
@@ -163,7 +163,7 @@ func _perform_continuous_hit_check():
 			
 			# 1. Calculate direction away from you
 			var knockback_dir = (body.global_position - global_position).normalized()
-			knockback_dir.y = 0.5 # Slight upward lift
+			knockback_dir.y = 5 # Slight upward lift
 			
 			# 2. Send the knockback command
 			body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
