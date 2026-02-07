@@ -5,6 +5,7 @@ extends Node
 var day_environment = load("res://Enviroment/day.tres")
 var night_environment = load("res://Enviroment/night.tres")
 var _is_day: bool = true
+var day_night_timer: Timer = null
 
 @onready var world_environment: WorldEnvironment = null
 
@@ -30,12 +31,12 @@ func _ready():
 	_is_day = true
 
 	if multiplayer.is_server():
-		var timer = Timer.new()
-		timer.wait_time = 10.0
-		timer.one_shot = false
-		timer.autostart = true
-		timer.timeout.connect(_toggle_day_night)
-		add_child(timer)
+		day_night_timer = Timer.new()
+		day_night_timer.wait_time = 10.0
+		day_night_timer.one_shot = false
+		day_night_timer.autostart = true
+		day_night_timer.timeout.connect(_toggle_day_night)
+		add_child(day_night_timer)
 		_set_day_state.rpc(_is_day)
 	else:
 		request_day_state.rpc_id(1)
