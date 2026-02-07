@@ -22,8 +22,12 @@ func _spawn_item():
 )
 	spawn_rpc.rpc(pos)
 
-@rpc("call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func spawn_rpc(pos: Vector3):
+	# Ignore spoofed client calls; allow server or server-sent RPCs only.
+	var sender_id = multiplayer.get_remote_sender_id()
+	if not multiplayer.is_server() and sender_id != 1:
+		return
 	var item = powerup_scene.instantiate()
 	add_child(item)
 	item.position = pos
