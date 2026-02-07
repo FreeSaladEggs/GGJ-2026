@@ -20,7 +20,6 @@ var _is_stunned = false
 var _is_attacking = false
 var _enemies_hit_this_attack = [] 
 var _saved_nickname: String = "" 
-var _has_golden_mask: bool = false
 
 # --- GRAB MECHANIC VARS ---
 var _grab_area: Area3D
@@ -78,7 +77,6 @@ func _ready():
 		var existing_mask = bone_attach.find_child("Golden Mask", true, false)
 		if existing_mask:
 			existing_mask.visible = false 
-			_has_golden_mask = false
 			if existing_mask is Area3D:
 				existing_mask.monitoring = false
 				existing_mask.monitorable = false
@@ -146,77 +144,9 @@ func equip_mask_visual():
 	if mask:
 		mask.set("is_equipped", true) 
 		if mask is Area3D:
-			mask.set_deferred("monitoring", false)
-			mask.set_deferred("monitorable", false)
+			mask.set_deferred("monitoring",false)
+			mask.set_deferred("monitorable",false)
 		mask.visible = true
-		_has_golden_mask = true
-
-@rpc("any_peer", "call_local", "reliable")
-func remove_mask_visual():
-	var mask = _get_mask_node()
-	if mask:
-		mask.set("is_equipped", false)
-		if mask is Area3D:
-			mask.set_deferred("monitoring", false)
-			mask.set_deferred("monitorable", false)
-		mask.visible = false
-	_has_golden_mask = false
-
-func _get_mask_node() -> Node:
-	var bone_attach = find_child("BoneAttachment3D", true, false)
-	if not bone_attach:
-		return null
-	return bone_attach.find_child("Golden Mask", true, false)
-
-@rpc("any_peer", "call_local", "reliable")
-func request_mask_steal(target_peer_id: int):
-	if not multiplayer.is_server():
-		return
-	var requester_id = multiplayer.get_remote_sender_id()
-	if requester_id != get_multiplayer_authority():
-		return
-	var target: Character = _get_player_by_authority(target_peer_id)
-	if not target or target == self:
-		return
-	if _has_golden_mask:
-		return
-	if not target._has_golden_mask:
-		return
-
-	target.remove_mask_visual.rpc()
-	equip_mask_visual.rpc()
-	_server_transfer_mask_inventory(self, target)
-
-func _get_player_by_authority(peer_id: int) -> Character:
-	for node in get_tree().get_nodes_in_group("player"):
-		if node is Character and node.get_multiplayer_authority() == peer_id:
-			return node
-	return null
-
-func _server_transfer_mask_inventory(attacker: Character, target: Character) -> void:
-	if not multiplayer.is_server():
-		return
-	if target.player_inventory:
-		target.player_inventory.remove_item("golden_mask", 1)
-	if attacker.player_inventory:
-		var item = ItemDatabase.get_item("golden_mask")
-		if item:
-			attacker.player_inventory.add_item(item, 1)
-	_server_sync_inventory(attacker)
-	_server_sync_inventory(target)
-
-func _server_sync_inventory(player: Character) -> void:
-	if not multiplayer.is_server():
-		return
-	if not player.player_inventory:
-		return
-	var owner_id = player.get_multiplayer_authority()
-	if owner_id != 1:
-		player.sync_inventory_to_owner.rpc_id(owner_id, player.player_inventory.to_dict())
-	else:
-		var level_scene = get_tree().get_current_scene()
-		if level_scene and level_scene.has_method("update_local_inventory_display"):
-			level_scene.update_local_inventory_display()
 
 # --- POWERUP SYSTEM ---
 
@@ -448,8 +378,6 @@ func _perform_continuous_hit_check():
 				knockback_dir, 
 				KNOCKBACK_FORCE
 			)
-			if not _has_golden_mask:
-				request_mask_steal.rpc_id(1, body.get_multiplayer_authority())
 			_enemies_hit_this_attack.append(body)
 
 func _process(_delta):
