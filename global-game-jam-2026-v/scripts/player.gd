@@ -50,7 +50,6 @@ var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_double_jump = true
 var has_double_jumped = false
 
-
 func _enter_tree():
 	set_multiplayer_authority(str(name).to_int())
 	$SpringArmOffset/SpringArm3D/Camera3D.current = is_multiplayer_authority()
@@ -61,19 +60,14 @@ func _ready():
 	if nickname:
 		_saved_nickname = nickname.text
 
-	# --- FIX START: HIDE MASK ON SPAWN ---
-	# We look for the mask bone attachment. If it exists in the scene, hide it.
 	var bone_attach = find_child("BoneAttachment3D", true, false)
 	if bone_attach:
 		var existing_mask = bone_attach.find_child("Golden Mask", true, false)
 		if existing_mask:
-			existing_mask.visible = false # Hide it so they don't spawn with it!
-			
-			# Also ensure physics are off for the head mask
+			existing_mask.visible = false 
 			if existing_mask is Area3D:
 				existing_mask.monitoring = false
 				existing_mask.monitorable = false
-	# --- FIX END ---
 
 	if is_multiplayer_authority():
 		player_inventory = PlayerInventory.new()
@@ -94,7 +88,6 @@ func equip_mask_visual():
 
 	var mask = bone_attach.find_child("Golden Mask", true, false)
 	
-	# If mask doesn't exist in the scene tree, load it
 	if not mask:
 		var mask_path = "res://scenes/level/golden_mask.tscn" 
 		if ResourceLoader.exists(mask_path):
@@ -106,21 +99,15 @@ func equip_mask_visual():
 	
 	if mask:
 		mask.set("is_equipped", true) 
-		
-		# Turn off physics so the head-mask doesn't trigger collisions
 		if mask is Area3D:
 			mask.monitoring = false
 			mask.monitorable = false
-			
 		mask.visible = true
-		print("Mask equipped visually on: ", name)
 
 # --- POWERUP SYSTEM ---
 
 func apply_powerup(item_id: String):
-	print("PowerUp Collected Locally: ", item_id)
 	_reset_stats_values()
-	
 	var new_text = ""
 	var new_color = Color.WHITE
 	
@@ -190,19 +177,34 @@ func receive_knockback(direction: Vector3, force_override: float = -1):
 @rpc("any_peer", "call_local")
 func apply_global_slow(caster_id: int):
 	if multiplayer.get_unique_id() == caster_id: return
-	print("I have been slowed!")
 	NORMAL_SPEED = 2.0
 	SPRINT_SPEED = 3.0
 	JUMP_VELOCITY = 5.0
-	
 	await get_tree().create_timer(5.0).timeout
-	
 	if not powerup_timer or powerup_timer.is_stopped():
 		NORMAL_SPEED = _base_normal_speed
 		SPRINT_SPEED = _base_sprint_speed
 		JUMP_VELOCITY = _base_jump
 
-# --- PHYSICS & MOVEMENT ---
+# --- BOUNCE SYSTEM ---
+
+func apply_rope_bounce(collision: KinematicCollision3D):
+	var collider = collision.get_collider()
+	var collision_normal = collision.get_normal()
+	
+	# 1. Calculate "Arrow" launch (straight away from rope)
+	var bounce_dir = collision_normal.normalized()
+	
+	# 2. Trigger the Visual Stretch on the rope
+	if collider.has_method("play_elastic_stretch"):
+		collider.play_elastic_stretch(global_position)
+	
+	# 3. Launch the player
+	receive_knockback.rpc_id(
+		get_multiplayer_authority(), 
+		bounce_dir, 
+		KNOCKBACK_FORCE * 1.5
+	)
 
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
@@ -228,10 +230,21 @@ func _physics_process(delta):
 			can_double_jump = false
 			_body.play_jump_animation("Jump2")
 
-	velocity.y -= gravity * delta
-
 	_move()
 	move_and_slide()
+	
+	### BOUNCE DETECTION ###
+	if is_multiplayer_authority():
+		for i in get_slide_collision_count():
+			var collision = get_slide_collision(i)
+			var collider = collision.get_collider()
+			
+			# Use is_in_group to detect the rope
+			if collider and collider.is_in_group("ropes"):
+				# FIX: Pass the 'collision' object, not 'collision.get_normal()'
+				apply_rope_bounce(collision)
+				break 
+	
 	_body.animate(velocity)
 
 func start_lingering_attack():
@@ -308,7 +321,7 @@ func _respawn():
 	global_transform.origin = _respawn_point
 	velocity = Vector3.ZERO
 
-# --- COSMETICS & INV ---
+# --- COSMETICS & INV (Remaining functions unchanged) ---
 
 @rpc("any_peer", "reliable")
 func change_nick(new_nick: String):
@@ -346,8 +359,6 @@ func _add_starting_items():
 	if sword: player_inventory.add_item(sword, 1)
 	var potion = ItemDatabase.get_item("health_potion")
 	if potion: player_inventory.add_item(potion, 3)
-
-# --- INVENTORY RPCS ---
 
 @rpc("any_peer", "call_local", "reliable")
 func request_inventory_sync():

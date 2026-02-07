@@ -1,0 +1,22 @@
+[gd_scene format=3 uid="uid://bbhvyi1xbkrkh"]
+
+[ext_resource type="Script" uid="uid://d01uj4d0l38so" path="res://scenes/level/elastic.gd" id="1_0eydv"]
+[ext_resource type="Material" uid="uid://d0yk0qyh4la16" path="res://Materials/elastic.tres" id="1_yq6ie"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_e6t3b"]
+size = Vector3(0.94348145, 1.0489502, 0.20654297)
+
+[sub_resource type="BoxMesh" id="BoxMesh_yq6ie"]
+
+[node name="Elastic" type="StaticBody3D" unique_id=444151204 groups=["ropes"]]
+collision_layer = 2
+script = ExtResource("1_0eydv")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1110111383]
+transform = Transform3D(3.1588387, 0, 0, 0, 0.17012669, 0, 0, 0, 1, 0.004048803, 0.00089621916, 0.0009793639)
+shape = SubResource("BoxShape3D_e6t3b")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1519742819]
+transform = Transform3D(2.9893656, 0, 0, 0, 0.17049769, 0, 0, 0, 0.21057427, 0, 0, 0)
+material_override = ExtResource("1_yq6ie")
+mesh = SubResource("BoxMesh_yq6ie")

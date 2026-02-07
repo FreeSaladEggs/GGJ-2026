@@ -31,6 +31,10 @@ ItemDatabase="*res://scripts/item_database.gd"
 window/size/viewport_width=1280
 window/size/viewport_height=720
 
+[global_group]
+
+ropes=""
+
 [input]
 
 move_left={
