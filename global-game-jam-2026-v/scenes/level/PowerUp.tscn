@@ -1,0 +1,34 @@
+[gd_scene format=3 uid="uid://dkiwye6cgndrj"]
+
+[ext_resource type="Script" uid="uid://cgvuaoqwtyfg8" path="res://scenes/level/power_up.gd" id="1_spo6p"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_qvati"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ysj6f"]
+transparency = 1
+albedo_color = Color(0.2902054, 1.2904384, 1.2904384, 0.023529412)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ma7es"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_1mhll"]
+radius = 1.0
+
+[node name="PowerUp" type="Area3D" unique_id=1529978246]
+script = ExtResource("1_spo6p")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1896132466]
+mesh = SubResource("SphereMesh_qvati")
+skeleton = NodePath("../CollisionShape3D")
+surface_material_override/0 = SubResource("StandardMaterial3D_ysj6f")
+
+[node name="ItemMesh" type="MeshInstance3D" parent="." unique_id=31562175]
+transform = Transform3D(0.24824001, 0, 0, 0, 0.24824001, 0, 0, 0, 0.24824001, 0, 0, 0)
+mesh = SubResource("BoxMesh_ma7es")
+
+[node name="Label3D" type="Label3D" parent="." unique_id=616638835]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+text = "PowerUp"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1426137272]
+transform = Transform3D(0.535, 0, 0, 0, 0.535, 0, 0, 0, 0.535, 0, 0, 0)
+shape = SubResource("SphereShape3D_1mhll")

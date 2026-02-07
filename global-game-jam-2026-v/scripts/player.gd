@@ -1,11 +1,19 @@
 extends CharacterBody3D
 class_name Character
 
-const NORMAL_SPEED = 6.0
-const SPRINT_SPEED = 10.0
-const JUMP_VELOCITY = 10
-const KNOCKBACK_FORCE = 30.0
-const STUN_DURATION = 0.4
+# --- CHANGE THESE FROM CONST TO VAR ---
+var NORMAL_SPEED = 6.0
+var SPRINT_SPEED = 10.0
+var JUMP_VELOCITY = 10.0
+var KNOCKBACK_FORCE = 25.0 # This was const before, make it var!
+
+# --- ADD THESE NEW VARS ---
+var _base_normal_speed = 6.0
+var _base_sprint_speed = 10.0
+var _base_jump = 10.0
+var _base_knockback = 25.0
+var powerup_timer: Timer
+var  STUN_DURATION = 0.4
 var _is_stunned = false
 var _is_attacking = false
 var _enemies_hit_this_attack = [] # Keeps track of who we already punched
@@ -112,6 +120,84 @@ func _perform_attack_hit_check():
 				# Send the command to the other player
 				# We use the multiplayer authority ID to target the specific player
 				body.receive_knockback.rpc_id(body.get_multiplayer_authority(), knockback_dir)
+
+# --- POWERUP SYSTEM ---
+
+func apply_powerup(item_id: String):
+	print("PowerUp Collected: ", item_id)
+	_reset_stats() # Remove old powerups first
+	
+	match item_id:
+		"speed":
+			NORMAL_SPEED = 14.0
+			SPRINT_SPEED = 22.0
+			_show_powerup_text("SPEED BOOST!", Color.CYAN)
+			
+		"jump":
+			JUMP_VELOCITY = 22.0
+			_show_powerup_text("MOON JUMP!", Color.GREEN)
+			
+		"knockback":
+			KNOCKBACK_FORCE = 80.0 # Huge knockback!
+			_show_powerup_text("TITAN PUNCH!", Color.RED)
+			
+		"slow_others":
+			_show_powerup_text("TIME FREEZE!", Color.VIOLET)
+			# Call RPC to slow everyone else
+			apply_global_slow.rpc(multiplayer.get_unique_id())
+
+	# Start Timer to reset stats after 10 seconds
+	if not powerup_timer:
+		powerup_timer = Timer.new()
+		add_child(powerup_timer)
+		powerup_timer.one_shot = true
+		powerup_timer.timeout.connect(_reset_stats)
+	
+	powerup_timer.start(10.0)
+
+func _reset_stats():
+	NORMAL_SPEED = _base_normal_speed
+	SPRINT_SPEED = _base_sprint_speed
+	JUMP_VELOCITY = _base_jump
+	KNOCKBACK_FORCE = _base_knockback
+	
+	# If we are currently slowed by someone else, don't reset speed yet!
+	# (For simplicity, this reset overrides everything)
+
+func _show_powerup_text(text: String, color: Color):
+	# Assumes you have a Label3D named "Nickname" or similar
+	if nickname:
+		var original_text = nickname.text
+		nickname.text = text
+		nickname.modulate = color
+		await get_tree().create_timer(2.0).timeout
+		nickname.text = original_text
+		nickname.modulate = Color.WHITE
+
+# --- SPECIAL ABILITY: SLOW OTHERS ---
+
+@rpc("any_peer", "call_local")
+func apply_global_slow(caster_id: int):
+	# If I am the one who cast it, I don't get slowed
+	if multiplayer.get_unique_id() == caster_id:
+		return
+		
+	print("I have been slowed by player ", caster_id)
+	
+	# Apply Slow
+	NORMAL_SPEED = 2.0
+	SPRINT_SPEED = 3.0
+	JUMP_VELOCITY = 5.0
+	
+	# Create a temporary timer to remove the slow after 5 seconds
+	await get_tree().create_timer(5.0).timeout
+	
+	# Restore my stats (unless I have a powerup active)
+	# For safety, we just reset to base
+	NORMAL_SPEED = _base_normal_speed
+	SPRINT_SPEED = _base_sprint_speed
+	JUMP_VELOCITY = _base_jump
+
 
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
