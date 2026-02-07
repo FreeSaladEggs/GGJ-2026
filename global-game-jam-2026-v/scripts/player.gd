@@ -26,6 +26,7 @@ var player_inventory: PlayerInventory
 @export var green_texture : CompressedTexture2D
 @export var red_texture : CompressedTexture2D
 
+@onready var head_mask = get_node_or_null("3DGodotRobot/RobotArmature/Skeleton3D/BoneAttachment3D/Golden Mask")
 @onready var _bottom_mesh: MeshInstance3D = get_node("3DGodotRobot/RobotArmature/Skeleton3D/Bottom")
 @onready var _chest_mesh: MeshInstance3D = get_node("3DGodotRobot/RobotArmature/Skeleton3D/Chest")
 @onready var _face_mesh: MeshInstance3D = get_node("3DGodotRobot/RobotArmature/Skeleton3D/Face")
@@ -38,6 +39,29 @@ var gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
 var can_double_jump = true
 var has_double_jumped = false
 
+
+@rpc("any_peer", "call_local", "reliable")
+func equip_mask_visual():
+	var bone_attach = find_child("BoneAttachment3D", true, false)
+	if not bone_attach: return
+
+	var mask = bone_attach.find_child("Golden Mask", true, false)
+	
+	if not mask:
+		var mask_path = "res://scenes/level/golden_mask.tscn" 
+		if ResourceLoader.exists(mask_path):
+			var mask_scene = load(mask_path)
+			mask = mask_scene.instantiate()
+			bone_attach.add_child(mask)
+			mask.name = "Golden Mask"
+			mask.transform = Transform3D.IDENTITY
+	
+	if mask:
+		# Use 'set' to avoid the "Invalid Assignment" crash
+		mask.set("is_equipped", true) 
+		mask.visible = true
+		print("SUCCESS: Mask is now an equipped accessory on: ", name)
+		
 @rpc("any_peer", "call_local", "reliable")
 func receive_knockback(direction: Vector3):
 	# 1. Apply the force

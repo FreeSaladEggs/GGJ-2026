@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://fpmmv2oxjcdv" path="res://assets/characters/player/GodotRobotPaletteSwap/GodotPalette.png" id="4_max2b"]
 [ext_resource type="Script" uid="uid://bj7yrijm7bppq" path="res://scripts/spring_arm_offset.gd" id="4_ygggd"]
 [ext_resource type="Texture2D" uid="uid://brp1gy30s4rks" path="res://assets/characters/player/GodotRobotPaletteSwap/GodotRedPalette.png" id="5_qlefn"]
+[ext_resource type="PackedScene" uid="uid://bcyayacmmfx12" path="res://scenes/level/golden_mask.tscn" id="8_pnmcy"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_mx45w"]
 radius = 0.35796
@@ -5008,6 +5009,10 @@ surface_material_override/0 = SubResource("StandardMaterial3D_1ln88")
 transform = Transform3D(1, -5.8175686e-14, -2.3841912e-07, 1.878609e-09, 0.99996895, 0.007879177, 2.3841172e-07, -0.007879177, 0.99996895, -2.7155227e-14, 1.7220585, 0.029791456)
 bone_name = "Head"
 bone_idx = 5
+
+[node name="Golden Mask" parent="3DGodotRobot/RobotArmature/Skeleton3D/BoneAttachment3D" unique_id=39416399 instance=ExtResource("8_pnmcy")]
+transform = Transform3D(1.5, 1.110223e-16, 2.842171e-14, 2.220446e-16, 1.5, 0, 0, 0, 1.5, 7.450581e-09, 0.50117064, 0.0039489344)
+visible = false
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="3DGodotRobot" unique_id=1069070947]
 libraries/ = SubResource("AnimationLibrary_f1v7x")

@@ -1,17 +1,23 @@
 extends Area3D
 
+# This MUST be at the very top, outside of any functions
+var is_equipped: bool = false 
+
 func _ready():
-	# Connect the signal so the function below runs on hit
-	body_entered.connect(_on_body_entered)
+	# Connect the signal if you haven't in the editor
+	if not body_entered.is_connected(_on_body_entered):
+		body_entered.connect(_on_body_entered)
 
 func _on_body_entered(body):
-	# Check if the body that hit the mask is a 'Character' (from your class_name)
-	if body is Character and body.is_in_group("player"):
-		print("Mask collected by player: ", body.name)
+	# If this is the one on the head, do nothing!
+	if is_equipped:
+		return 
 		
-		# Access the inventory logic already in your player script
-		if body.has_method("request_add_item"):
-			# Change "golden_mask" to whatever the ID is in your ItemDatabase
-			body.request_add_item.rpc_id(1, "golden_mask", 1) 
+	if body is Character:
+		print("Ground mask picked up!")
+		body.equip_mask_visual.rpc()
 		
-		queue_free() # Delete the mask from the world
+		if multiplayer.is_server():
+			body.request_add_item("golden_mask", 1)
+			
+		queue_free() # Only the ground one dies
