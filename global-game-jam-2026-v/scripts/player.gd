@@ -21,6 +21,15 @@ var _is_attacking = false
 var _enemies_hit_this_attack = [] 
 var _saved_nickname: String = "" 
 
+# --- GRAB MECHANIC VARS ---
+var _grab_area: Area3D
+var _grab_collision: CollisionShape3D
+var _grab_mesh: MeshInstance3D
+var _is_expanding_grab: bool = false
+var _current_grab_radius: float = 0.0
+const MAX_GRAB_RADIUS = (50)
+const GRAB_SPEED = 25.0
+
 enum SkinColor { BLUE, YELLOW, GREEN, RED }
 
 # --- NODES ---
@@ -57,6 +66,9 @@ func _enter_tree():
 func _ready():
 	add_to_group("player")
 	
+	# --- SETUP GRAB NODES PROGRAMMATICALLY ---
+	_setup_grab_nodes()
+	
 	if nickname:
 		_saved_nickname = nickname.text
 
@@ -79,6 +91,38 @@ func _ready():
 		if get_multiplayer_authority() == multiplayer.get_unique_id():
 			request_inventory_sync.rpc_id(1)
 
+func _setup_grab_nodes():
+	# Create the Area3D to detect players
+	_grab_area = Area3D.new()
+	add_child(_grab_area)
+	_grab_area.monitoring = false
+	_grab_area.monitorable = false
+	
+	_grab_collision = CollisionShape3D.new()
+	var sphere = SphereShape3D.new()
+	sphere.radius = 1.0 # Base radius, will be scaled
+	_grab_collision.shape = sphere
+	_grab_area.add_child(_grab_collision)
+	
+	# Create the Visual Bubble
+	_grab_mesh = MeshInstance3D.new()
+	var sphere_mesh = SphereMesh.new()
+	sphere_mesh.radius = 1.0
+	sphere_mesh.height = 2.0
+	
+	# Make it look like a transparent forcefield
+	var material = StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(0.5, 0, 1, 0.3) # Purple transparent
+	material.emission_enabled = true
+	material.emission = Color(0.5, 0, 1)
+	material.emission_energy_multiplier = 2.0
+	sphere_mesh.material = material
+	
+	_grab_mesh.mesh = sphere_mesh
+	add_child(_grab_mesh)
+	_grab_mesh.visible = false
+
 # --- MASK VISUAL LOGIC ---
 
 @rpc("any_peer", "call_local", "reliable")
@@ -100,7 +144,6 @@ func equip_mask_visual():
 	if mask:
 		mask.set("is_equipped", true) 
 		if mask is Area3D:
-			mask.monitorable
 			mask.set_deferred("monitoring",false)
 			mask.set_deferred("monitorable",false)
 		mask.visible = true
@@ -127,9 +170,11 @@ func apply_powerup(item_id: String):
 			new_text = "TITAN PUNCH!"
 			new_color = Color(1, 0.2, 0.2) 
 		"slow_others":
-			new_text = "TIME FREEZE!"
+			# --- CHANGED TO GRAB ---
+			new_text = "BLACK HOLE!"
 			new_color = Color.VIOLET
-			apply_global_slow.rpc(multiplayer.get_unique_id())
+			# Trigger the grab ability on everyone's screen
+			trigger_grab_ability.rpc()
 
 	update_powerup_label.rpc(new_text, new_color)
 
@@ -165,7 +210,77 @@ func reset_powerup_label():
 		nickname.text = _saved_nickname
 		nickname.modulate = Color.WHITE
 
+# --- NEW GRAB ABILITY LOGIC ---
+
+@rpc("any_peer", "call_local")
+func trigger_grab_ability():
+	# Reset size
+	_current_grab_radius = 1.0
+	_is_expanding_grab = true
+	
+	# Turn on visuals/collision
+	_grab_mesh.scale = Vector3.ONE
+	_grab_mesh.visible = true
+	_grab_area.scale = Vector3.ONE
+	
+	# Only the person who used the ability monitors for hits
+	if is_multiplayer_authority():
+		_grab_area.monitoring = true
+
+func _process_grab_mechanic(delta):
+	if not _is_expanding_grab: return
+	
+	# Grow the radius
+	_current_grab_radius += delta * GRAB_SPEED
+	
+	# Apply scale to visual and collision
+	var new_scale = Vector3(_current_grab_radius, _current_grab_radius, _current_grab_radius)
+	_grab_mesh.scale = new_scale
+	_grab_area.scale = new_scale
+	
+	# Check for Max Size (Missed attempt)
+	if _current_grab_radius >= MAX_GRAB_RADIUS:
+		_end_grab_ability()
+		return
+
+	# HIT DETECTION (Only runs on the owner of the ability)
+	if is_multiplayer_authority():
+		var bodies = _grab_area.get_overlapping_bodies()
+		for body in bodies:
+			if body is Character and body != self:
+				# FOUND A TARGET!
+				_perform_pull_on_target(body)
+				_end_grab_ability() # Stop expanding immediately
+				break
+
+func _perform_pull_on_target(target_body: Character):
+	# Calculate direction FROM target TO me
+	var pull_dir = (global_position - target_body.global_position).normalized()
+	
+	# Strong pull force
+	var pull_strength = 60.0 
+	
+	# Send RPC to the target to get pulled
+	target_body.receive_pull.rpc_id(
+		target_body.get_multiplayer_authority(),
+		pull_dir,
+		pull_strength
+	)
+
+func _end_grab_ability():
+	_is_expanding_grab = false
+	_grab_mesh.visible = false
+	_grab_area.monitoring = false
+
 # --- COMBAT & ABILITIES ---
+
+@rpc("any_peer", "call_local", "reliable")
+func receive_pull(direction: Vector3, strength: float):
+	# This is specific for the grab: lifts them up slightly and pulls hard
+	velocity = direction * strength
+	velocity.y = 10.0 # Pop them in the air slightly so they don't drag on floor
+	_is_stunned = true
+	get_tree().create_timer(0.5).timeout.connect(func(): _is_stunned = false)
 
 @rpc("any_peer", "call_local", "reliable")
 func receive_knockback(direction: Vector3, force_override: float = -1):
@@ -177,15 +292,8 @@ func receive_knockback(direction: Vector3, force_override: float = -1):
 
 @rpc("any_peer", "call_local")
 func apply_global_slow(caster_id: int):
-	if multiplayer.get_unique_id() == caster_id: return
-	NORMAL_SPEED = 2.0
-	SPRINT_SPEED = 3.0
-	JUMP_VELOCITY = 5.0
-	await get_tree().create_timer(5.0).timeout
-	if not powerup_timer or powerup_timer.is_stopped():
-		NORMAL_SPEED = _base_normal_speed
-		SPRINT_SPEED = _base_sprint_speed
-		JUMP_VELOCITY = _base_jump
+	# (Keeping this function to avoid errors if other scripts call it, but logic is empty)
+	pass
 
 # --- BOUNCE SYSTEM ---
 
@@ -193,24 +301,23 @@ func apply_rope_bounce(collision: KinematicCollision3D):
 	var collider = collision.get_collider()
 	var collision_normal = collision.get_normal()
 	
-	# 1. "Arrow" Physics: Launch straight away from the surface normal
 	var bounce_dir = collision_normal.normalized()
 	
-	# 2. Fix the Visual: Pass the Player's position so the rope knows where to bend
 	if collider.has_method("play_elastic_stretch"):
 		collider.play_elastic_stretch(global_position)
 	
-	# 3. Apply the launch force
-	# We set Y to a small value so they don't just stick to the floor
 	var final_dir = Vector3(bounce_dir.x, 0.2, bounce_dir.z)
 	
 	receive_knockback.rpc_id(
 		get_multiplayer_authority(), 
 		final_dir, 
-		KNOCKBACK_FORCE * 1.8 # Increased force for a better snap
+		KNOCKBACK_FORCE * 1.8 
 	)
 
 func _physics_process(delta):
+	# Run the Grab Logic every frame (visuals + collision)
+	_process_grab_mechanic(delta)
+	
 	if not is_multiplayer_authority(): return
 	
 	if Input.is_action_just_pressed("attack") and not _is_attacking:
@@ -243,9 +350,7 @@ func _physics_process(delta):
 			var collision = get_slide_collision(i)
 			var collider = collision.get_collider()
 			
-			# Use is_in_group to detect the rope
 			if collider and collider.is_in_group("ropes"):
-				# FIX: Pass the 'collision' object, not 'collision.get_normal()'
 				apply_rope_bounce(collision)
 				break 
 	
@@ -325,7 +430,7 @@ func _respawn():
 	global_transform.origin = _respawn_point
 	velocity = Vector3.ZERO
 
-# --- COSMETICS & INV (Remaining functions unchanged) ---
+# --- COSMETICS & INV ---
 
 @rpc("any_peer", "reliable")
 func change_nick(new_nick: String):
