@@ -537,7 +537,7 @@ func _server_sync_inventory(player: Character) -> void:
 
 func apply_powerup(item_id: String):
 	# --- NEW CHECK: ONLY ALLOW IN DAYLIGHT ---
-	if not _is_currently_day():
+	if not _is_currently_day() and _has_golden_mask:
 		return # If it is Night, do nothing (Powerups disabled)
 	# -----------------------------------------
 
