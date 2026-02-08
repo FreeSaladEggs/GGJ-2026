@@ -819,7 +819,7 @@ func _perform_continuous_hit_check():
 		if body is Character and body != self and not body in _enemies_hit_this_attack and not body._is_dead:
 			
 			# If I have the Mask -> They DIE.
-			if _has_golden_mask:
+			if _has_golden_mask and not _is_currently_day():
 				body.trigger_death.rpc_id(body.get_multiplayer_authority())
 			
 			# If I don't have the Mask -> Knockback + Try Steal
