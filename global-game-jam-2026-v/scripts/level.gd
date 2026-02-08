@@ -11,6 +11,13 @@ var is_spawned = true
 var chat_visible = false
 var inventory_visible = false
 
+# --- NEW SPAWN POSITIONS ---
+var spawn_positions: Array[Vector3] = [
+	Vector3(-21.882, 0.279, 31.226), # Spot 1
+	Vector3(6.906, 0.279, 31.226),   # Spot 2
+	Vector3(26.758, 0.279, -11.402), # Spot 3
+	Vector3(-6.825, 0.334, -40.171)  # Spot 4
+]
 
 func _ready():
 	# --- STARTUP ---
@@ -74,7 +81,10 @@ func _add_player(id: int, player_info : Dictionary):
 
 	var player = player_scene.instantiate()
 	player.name = str(id)
+	
+	# Assign spawn point based on new logic
 	player.position = get_spawn_point()
+	
 	players_container.add_child(player, true)
 
 	var nick = Network.players[id]["nick"]
@@ -83,9 +93,15 @@ func _add_player(id: int, player_info : Dictionary):
 	var skin_enum = player_info["skin"]
 	player.set_player_skin(skin_enum)
 
+# --- UPDATED SPAWN LOGIC ---
 func get_spawn_point() -> Vector3:
-	var spawn_point = Vector2.from_angle(randf() * 2 * PI) * 10
-	return Vector3(spawn_point.x, 0, spawn_point.y)
+	# Get current number of players to determine which slot to use
+	var count = players_container.get_child_count()
+	
+	# Use modulo (%) to loop back to the first spot if more than 4 players join
+	var index = count % spawn_positions.size()
+	
+	return spawn_positions[index]
 
 func _remove_player(id):
 	if not multiplayer.is_server() or not players_container.has_node(str(id)):
