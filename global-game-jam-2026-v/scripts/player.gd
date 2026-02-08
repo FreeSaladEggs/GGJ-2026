@@ -436,7 +436,7 @@ func check_green_mask_logic(_is_equipping: bool): pass
 
 func check_blue_mask_logic(is_equipping: bool):
 	if not is_multiplayer_authority(): return
-	if is_equipping and _current_skin_color == SkinColor.BLUE:
+	if is_equipping and _current_skin_color == SkinColor.BLUE and not _is_currently_day() :
 		set_giant_state.rpc(true)
 	else:
 		if _is_giant: set_giant_state.rpc(false)
@@ -495,15 +495,17 @@ func _get_mask_node() -> Node:
 @rpc("any_peer", "call_local", "reliable")
 func request_mask_steal(target_peer_id: int):
 	if not multiplayer.is_server(): return
-	var requester_id = multiplayer.get_remote_sender_id()
-	if requester_id != get_multiplayer_authority(): return
-	var target: Character = _get_player_by_authority(target_peer_id)
-	if not target or target == self: return
-	if _has_golden_mask: return
-	if not target._has_golden_mask: return
-	target.remove_mask_visual.rpc()
-	equip_mask_visual.rpc()
-	_server_transfer_mask_inventory(self, target)
+	
+	if _is_currently_day():
+		var requester_id = multiplayer.get_remote_sender_id()
+		if requester_id != get_multiplayer_authority(): return
+		var target: Character = _get_player_by_authority(target_peer_id)
+		if not target or target == self: return
+		if _has_golden_mask: return
+		if not target._has_golden_mask: return
+		target.remove_mask_visual.rpc()
+		equip_mask_visual.rpc()
+		_server_transfer_mask_inventory(self, target)
 
 func _get_player_by_authority(peer_id: int) -> Character:
 	for node in get_tree().get_nodes_in_group("player"):
@@ -534,11 +536,13 @@ func _server_sync_inventory(player: Character) -> void:
 # --- POWERUP SYSTEM ---
 
 func apply_powerup(item_id: String):
-	# --- NEW GUARD CLAUSE ---
-	# If the player has the mask, do not apply the powerup.
-	if _has_golden_mask:
-		return 
-	# ------------------------
+	# --- NEW CHECK: ONLY ALLOW IN DAYLIGHT ---
+	if not _is_currently_day():
+		return # If it is Night, do nothing (Powerups disabled)
+	# -----------------------------------------
+
+	# Note: We removed the "if _has_golden_mask: return" check 
+	# because you specified they can pick up items in daylight "even if he has the mask".
 
 	_reset_stats_values()
 	var new_text = ""
@@ -565,9 +569,7 @@ func apply_powerup(item_id: String):
 			
 	update_powerup_label.rpc(new_text, new_color)
 	
-	if powerup_timer: 
-		powerup_timer.queue_free()
-		
+	if powerup_timer: powerup_timer.queue_free()
 	powerup_timer = Timer.new()
 	add_child(powerup_timer)
 	powerup_timer.one_shot = true
@@ -668,69 +670,100 @@ func apply_rope_bounce(collision: KinematicCollision3D):
 	receive_knockback.rpc_id(get_multiplayer_authority(), final_dir, KNOCKBACK_FORCE * 1.8)
 
 # --- PHYSICS PROCESS (UPDATED) ---
+func _is_currently_day() -> bool:
+	# Find the DayNightCycle script using the group we just added
+	var day_night_node = get_tree().get_first_node_in_group("DayNightSystem")
+	if day_night_node:
+		return day_night_node._is_day
+	return true # Default to Day if no system is found
 
 func _physics_process(delta):
-	# IF DEAD -> STOP EVERYTHING
+	# --- 1. DEATH CHECK ---
 	if _is_dead: 
-		# Ensure they fall if in air, but no input/sliding
 		velocity.x = 0
 		velocity.z = 0
 		velocity.y -= gravity * delta
 		move_and_slide()
-		
 		return
+		
 	
+	# --- 2. ALWAYS PROCESS GRAB VISUALS ---
 	_process_grab_mechanic(delta)
 	
-	if not is_multiplayer_authority(): return
+	# --- 3. MULTIPLAYER AUTHORITY CHECK ---
+	if not is_multiplayer_authority(): 
+		return
 	
+	# --- 4. COOLDOWN MANAGEMENT ---
 	if _green_ability_cooldown > 0.0: _green_ability_cooldown -= delta
 	if _red_ability_cooldown > 0.0: _red_ability_cooldown -= delta
 	if _yellow_ability_cooldown > 0.0: _yellow_ability_cooldown -= delta
 	
+	check_blue_mask_logic(true)
+	# --- 5. CHECK TIME OF DAY ---
+	# We store this in a variable to use for both Attacks and Ultimate
+	var is_day = _is_currently_day() 
+	
+	# --- 6. INPUT: ATTACK (LMB) ---
 	if Input.is_action_just_pressed("attack"):
-		if _has_golden_mask and _current_skin_color == SkinColor.GREEN:
-			if _green_ability_cooldown <= 0.0:
-				_green_ability_cooldown = GREEN_COOLDOWN_MAX
-				trigger_green_blast.rpc(get_multiplayer_authority())
-		elif _has_golden_mask and _current_skin_color == SkinColor.RED:
-			if _red_ability_cooldown <= 0.0:
-				_red_ability_cooldown = RED_COOLDOWN_MAX
-				trigger_lava_floor.rpc(get_multiplayer_authority())
-		elif not _is_attacking:
+		var ability_used = false
+		
+		# LOGIC: Check for Special Ability
+		# STRICT RULE: Must have Mask AND it must NOT be Day (Night only)
+		if _has_golden_mask and not is_day:
+			
+			# GREEN ABILITY
+			if _current_skin_color == SkinColor.GREEN:
+				if _green_ability_cooldown <= 0.0:
+					_green_ability_cooldown = GREEN_COOLDOWN_MAX
+					trigger_green_blast.rpc(get_multiplayer_authority())
+					ability_used = true
+
+			# RED ABILITY
+			elif _current_skin_color == SkinColor.RED:
+				if _red_ability_cooldown <= 0.0:
+					_red_ability_cooldown = RED_COOLDOWN_MAX
+					trigger_lava_floor.rpc(get_multiplayer_authority())
+					ability_used = true
+		
+		# STANDARD ATTACK LOGIC:
+		# This runs if:
+		# 1. You don't have the mask OR
+		# 2. It IS daytime (even if you have the mask) OR
+		# 3. Your ability was on cooldown
+		if not ability_used and not _is_attacking:
 			start_lingering_attack()
 			
-	if Input.is_key_pressed(KEY_R) and _has_golden_mask and _current_skin_color == SkinColor.YELLOW:
-		if _yellow_ability_cooldown <= 0.0:
-			_yellow_ability_cooldown = YELLOW_COOLDOWN_MAX
-			
-		# Generate positions locally or request server to generate them
-			var strikes = []
-			for i in range(LIGHTNING_COUNT):
-				var angle = randf() * TAU
-				var dist = randf_range(2.0, LIGHTNING_RADIUS)
-				var offset = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
-				strikes.append(global_position + offset)
-		
-		# Send the command to everyone (The Server will catch it and spawn the Area3Ds)
-			trigger_yellow_lightning.rpc(strikes, get_multiplayer_authority())
+	# --- 7. INPUT: YELLOW ULTIMATE (R Key) ---
+	# LOGIC: Must have Mask AND it must NOT be Day
+	if Input.is_key_pressed(KEY_R):
+		if _has_golden_mask and not is_day:
+			if _current_skin_color == SkinColor.YELLOW:
+				if _yellow_ability_cooldown <= 0.0:
+					_yellow_ability_cooldown = YELLOW_COOLDOWN_MAX
+					
+					# Calculate lightning positions
+					var strikes = []
+					for i in range(LIGHTNING_COUNT):
+						var angle = randf() * TAU
+						var dist = randf_range(2.0, LIGHTNING_RADIUS)
+						var offset = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+						strikes.append(global_position + offset)
+					
+					trigger_yellow_lightning.rpc(strikes, get_multiplayer_authority())
 	
+	# --- 8. HIT DETECTION (If punching) ---
 	if _is_attacking:
 		_perform_continuous_hit_check()
-		
-	if Input.is_action_just_pressed("attack"):
-		if _has_golden_mask and _current_skin_color == SkinColor.RED:
-			if _red_ability_cooldown <= 0.0:
-				_red_ability_cooldown = RED_COOLDOWN_MAX
-			# RPC call - Any peer can start the sequence
-				trigger_lava_floor.rpc(get_multiplayer_authority())
 	
+	# --- 9. GIANT EARTHQUAKE LOGIC ---
 	var is_on_floor_now = is_on_floor()
 	if is_on_floor_now and not _was_on_floor:
 		if _is_giant:
 			trigger_earthquake.rpc(get_multiplayer_authority())
 	_was_on_floor = is_on_floor_now
 
+	# --- 10. JUMP & GRAVITY ---
 	if is_on_floor():
 		if not _is_frozen_by_green:
 			if not _is_stunned:
@@ -751,9 +784,11 @@ func _physics_process(delta):
 			can_double_jump = false
 			_body.play_jump_animation("Jump2")
 
+	# --- 11. MOVEMENT & ANIMATION ---
 	_move()
 	move_and_slide()
 	
+	# Handle Rope Bouncing
 	if is_multiplayer_authority():
 		for i in get_slide_collision_count():
 			var collision = get_slide_collision(i)

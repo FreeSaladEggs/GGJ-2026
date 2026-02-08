@@ -13,6 +13,7 @@ func switch_to_night():
 	if not world_environment:
 		return
 	world_environment.environment = night_environment
+	
 
 func switch_to_day():
 	if not world_environment:
@@ -21,6 +22,7 @@ func switch_to_day():
 
 
 func _ready():
+	add_to_group("DayNightSystem")
 	var root_scene = get_tree().get_current_scene()
 	if root_scene:
 		world_environment = root_scene.find_child("WorldEnvironment", true, false)
