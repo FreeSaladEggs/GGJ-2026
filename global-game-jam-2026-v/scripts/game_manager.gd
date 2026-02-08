@@ -32,7 +32,7 @@ func _ready():
 
 	if multiplayer.is_server():
 		day_night_timer = Timer.new()
-		day_night_timer.wait_time = 10.0
+		day_night_timer.wait_time = 30.0
 		day_night_timer.one_shot = false
 		day_night_timer.autostart = true
 		day_night_timer.timeout.connect(_toggle_day_night)

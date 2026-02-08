@@ -12,7 +12,11 @@ func apply_rotation(_velocity: Vector3) -> void:
 	rotation.y = new_rotation_y
 
 func animate(_velocity: Vector3) -> void:
-	if animation_player.current_animation == "Attack1" and animation_player.is_playing():
+
+	if animation_player.current_animation == "Hurt" :
+		return
+		
+	if  animation_player.current_animation == "Attack1" and animation_player.is_playing():
 		return
 
 	if not _character.is_on_floor():
@@ -45,4 +49,7 @@ func play_attack_animation() -> void:
 	if anim:
 		anim.loop_mode = Animation.LOOP_NONE
 	animation_player.play("Attack1")
+	
+func play_hurt_animation() -> void:
+	animation_player.play("Hurt")
 	
