@@ -7,6 +7,8 @@
 [sub_resource type="StyleBoxLine" id="StyleBoxLine_npnbc"]
 color = Color(0, 0, 0, 0)
 
+[sub_resource type="Theme" id="Theme_b8bkt"]
+
 [node name="MainMenuUI" type="Control" unique_id=1349505428]
 layout_mode = 3
 anchors_preset = 15
@@ -68,12 +70,14 @@ alignment = 1
 [node name="Label" type="Label" parent="MainContainer/MainMenu/Option1" unique_id=103856760]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme = SubResource("Theme_b8bkt")
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "Nickname : "
 
 [node name="NickInput" type="LineEdit" parent="MainContainer/MainMenu/Option1" unique_id=998896876]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.56078434, 0.56078434, 0.56078434, 1)
 theme_override_fonts/font = ExtResource("1_font")
 theme_override_font_sizes/font_size = 35
 placeholder_text = "YourNick"
@@ -88,18 +92,30 @@ alignment = 1
 [node name="Label" type="Label" parent="MainContainer/MainMenu/Option2" unique_id=2010460183]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme = SubResource("Theme_b8bkt")
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "Player Skin : "
 
-[node name="SkinInput" type="LineEdit" parent="MainContainer/MainMenu/Option2" unique_id=710805100]
+[node name="OptionButton" type="OptionButton" parent="MainContainer/MainMenu/Option2" unique_id=90142483]
 layout_mode = 2
-size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.56078434, 0.56078434, 0.56078434, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_pressed_color = Color(1, 1, 1, 1)
 theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
-placeholder_text = "blue"
-alignment = 1
-expand_to_text_length = true
+theme_override_font_sizes/font_size = 29
+selected = 0
+item_count = 4
+popup/item_0/text = "red"
+popup/item_0/id = 0
+popup/item_1/text = "blue"
+popup/item_1/id = 1
+popup/item_2/text = "green"
+popup/item_2/id = 2
+popup/item_3/text = "yellow"
+popup/item_3/id = 3
 
 [node name="Option3" type="HBoxContainer" parent="MainContainer/MainMenu" unique_id=829863446]
 layout_mode = 2
@@ -110,12 +126,14 @@ alignment = 1
 [node name="Label" type="Label" parent="MainContainer/MainMenu/Option3" unique_id=790739463]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme = SubResource("Theme_b8bkt")
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "IP Address : "
 
 [node name="AddressInput" type="LineEdit" parent="MainContainer/MainMenu/Option3" unique_id=922286227]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.56078434, 0.56078434, 0.56078434, 1)
 theme_override_fonts/font = ExtResource("1_font")
 theme_override_font_sizes/font_size = 35
 placeholder_text = "127.0.0.1"
@@ -134,19 +152,21 @@ alignment = 1
 
 [node name="Host" type="Button" parent="MainContainer/MainMenu/Buttons" unique_id=2143335380]
 layout_mode = 2
+theme = SubResource("Theme_b8bkt")
 theme_override_colors/font_pressed_color = Color(0, 0.52549, 0, 1)
 theme_override_colors/font_hover_color = Color(0, 0.52549, 0, 1)
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "HOST"
 flat = true
 
 [node name="Join" type="Button" parent="MainContainer/MainMenu/Buttons" unique_id=73276680]
 layout_mode = 2
+theme = SubResource("Theme_b8bkt")
 theme_override_colors/font_pressed_color = Color(0, 0.52549, 0, 1)
 theme_override_colors/font_hover_color = Color(0, 0.525257, 0, 1)
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "JOIN"
 flat = true
 
@@ -158,10 +178,11 @@ alignment = 1
 
 [node name="Quit" type="Button" parent="MainContainer/MainMenu/Option4" unique_id=1672994946]
 layout_mode = 2
+theme = SubResource("Theme_b8bkt")
 theme_override_colors/font_pressed_color = Color(0.858824, 0, 0, 0.862745)
 theme_override_colors/font_hover_color = Color(0.858807, 4.71681e-06, 1.15514e-06, 0.862745)
-theme_override_fonts/font = ExtResource("1_font")
-theme_override_font_sizes/font_size = 35
+theme_override_fonts/font = ExtResource("2_b8bkt")
+theme_override_font_sizes/font_size = 45
 text = "QUIT"
 flat = true
 
