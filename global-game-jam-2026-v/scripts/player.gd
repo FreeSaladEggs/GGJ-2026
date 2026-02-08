@@ -699,7 +699,8 @@ func _physics_process(delta):
 	if _red_ability_cooldown > 0.0: _red_ability_cooldown -= delta
 	if _yellow_ability_cooldown > 0.0: _yellow_ability_cooldown -= delta
 	
-	check_blue_mask_logic(true)
+	if _has_golden_mask:
+		check_blue_mask_logic(true)
 	# --- 5. CHECK TIME OF DAY ---
 	# We store this in a variable to use for both Attacks and Ultimate
 	var is_day = _is_currently_day() 
