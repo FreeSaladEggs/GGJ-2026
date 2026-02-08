@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://djvadqgb1k2me"]
+
+[ext_resource type="PackedScene" uid="uid://c8au5hyvn1ytl" path="res://3D/MASK.fbx" id="1_hca6h"]
+
+[node name="MASK" unique_id=814977172 instance=ExtResource("1_hca6h")]

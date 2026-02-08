@@ -2,8 +2,9 @@
 
 [ext_resource type="Material" uid="uid://ciimuayw7qb4n" path="res://Materials/GoldenMask.tres" id="1_b346u"]
 [ext_resource type="Script" uid="uid://bjxoct0rqsd7n" path="res://scripts/golden_mask.gd" id="1_ivm3u"]
+[ext_resource type="PackedScene" uid="uid://c8au5hyvn1ytl" path="res://3D/MASK.fbx" id="2_rc2ek"]
 
-[sub_resource type="SphereMesh" id="SphereMesh_b346u"]
+[sub_resource type="SphereMesh" id="SphereMesh_ug05i"]
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_ivm3u"]
 
@@ -11,9 +12,13 @@
 collision_layer = 2
 script = ExtResource("1_ivm3u")
 
+[node name="MASK" parent="." unique_id=814977172 instance=ExtResource("2_rc2ek")]
+transform = Transform3D(6.395, 0, 0, 0, 6.395, 0, 0, 0, 6.395, 0, -12.495473, 0.21985291)
+
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=619502400]
 material_override = ExtResource("1_b346u")
-mesh = SubResource("SphereMesh_b346u")
+transparency = 1.0
+mesh = SubResource("SphereMesh_ug05i")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1535705385]
 shape = SubResource("SphereShape3D_ivm3u")
