@@ -25,6 +25,7 @@ var _saved_nickname: String = ""
 var _has_golden_mask: bool = false
 var _current_skin_color: SkinColor = SkinColor.BLUE 
 var _was_on_floor: bool = true 
+var canGetAbility: bool = true
 
 # --- GREEN ABILITY VARS ---
 var _green_ability_cooldown: float = 0.0
@@ -469,6 +470,7 @@ func equip_mask_visual():
 			mask.set_deferred("monitorable", false)
 		mask.visible = true
 		_has_golden_mask = true
+		canGetAbility = false
 		check_green_mask_logic(true)
 		check_blue_mask_logic(true)
 
@@ -532,9 +534,16 @@ func _server_sync_inventory(player: Character) -> void:
 # --- POWERUP SYSTEM ---
 
 func apply_powerup(item_id: String):
+	# --- NEW GUARD CLAUSE ---
+	# If the player has the mask, do not apply the powerup.
+	if _has_golden_mask:
+		return 
+	# ------------------------
+
 	_reset_stats_values()
 	var new_text = ""
 	var new_color = Color.WHITE
+	
 	match item_id:
 		"speed":
 			NORMAL_SPEED = 14.0
@@ -553,8 +562,12 @@ func apply_powerup(item_id: String):
 			new_text = "BLACK HOLE!"
 			new_color = Color.VIOLET
 			trigger_grab_ability.rpc()
+			
 	update_powerup_label.rpc(new_text, new_color)
-	if powerup_timer: powerup_timer.queue_free()
+	
+	if powerup_timer: 
+		powerup_timer.queue_free()
+		
 	powerup_timer = Timer.new()
 	add_child(powerup_timer)
 	powerup_timer.one_shot = true

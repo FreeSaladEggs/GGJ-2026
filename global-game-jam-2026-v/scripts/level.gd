@@ -11,6 +11,7 @@ var is_spawned = true
 var chat_visible = false
 var inventory_visible = false
 
+
 func _ready():
 	# --- STARTUP ---
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
