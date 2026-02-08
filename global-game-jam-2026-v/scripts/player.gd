@@ -968,4 +968,17 @@ func request_remove_item(item_id: String, quantity: int = 1):
 	var owner_id = get_multiplayer_authority()
 	if owner_id != 1: sync_inventory_to_owner.rpc_id(owner_id, player_inventory.to_dict())
 	
+# --- ADD THIS TO THE BOTTOM OF Character.gd ---
+
+@rpc("any_peer", "call_local", "reliable")
+func force_mask_reset():
+	# 1. Remove Visuals
+	remove_mask_visual()
 	
+	# 2. Clear Inventory (Server Side Only)
+	if multiplayer.is_server():
+		if player_inventory and player_inventory.has_item("golden_mask"):
+			player_inventory.remove_item("golden_mask", 1)
+			# Sync the empty inventory back to the client
+			_server_sync_inventory(self)
+			print("Server: Mask stripped from ", name)
