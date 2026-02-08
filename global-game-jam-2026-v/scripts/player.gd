@@ -4,7 +4,7 @@ class_name Character
 # --- STATS ---
 var NORMAL_SPEED = 6.0
 var SPRINT_SPEED = 10.0
-var JUMP_VELOCITY = 10.0
+var JUMP_VELOCITY = 7.0
 var KNOCKBACK_FORCE = 25.0 
 
 var _base_normal_speed = 6.0
@@ -194,15 +194,6 @@ func trigger_yellow_lightning(strike_positions: Array, source_id: int):
 	# This ensures the "Hit" is calculated authoritatively
 	if multiplayer.is_server():
 		for pos in strike_positions:
-			# TEMPORARY DEBUG VISUAL
-			var debug_circle = MeshInstance3D.new()
-			var cylinder = CylinderMesh.new()
-			cylinder.top_radius = LIGHTNING_HIT_RADIUS
-			cylinder.bottom_radius = LIGHTNING_HIT_RADIUS
-			cylinder.height = 0.1
-			debug_circle.mesh = cylinder
-			get_tree().root.add_child(debug_circle)
-			debug_circle.global_position = pos
 			_spawn_server_hit_zone(pos, source_id)
 
 func _spawn_server_hit_zone(pos: Vector3, attacker_id: int):
