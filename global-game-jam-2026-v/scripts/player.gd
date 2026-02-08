@@ -4,7 +4,7 @@ class_name Character
 # --- STATS ---
 var NORMAL_SPEED = 6.0
 var SPRINT_SPEED = 10.0
-var JUMP_VELOCITY = 7.0
+var JUMP_VELOCITY = 8.5
 var KNOCKBACK_FORCE = 25.0 
 
 var _base_normal_speed = 6.0
